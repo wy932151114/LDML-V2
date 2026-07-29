@@ -12,6 +12,8 @@ concurrency:
 
 env:
   NODE_VERSION: 22
+  # Lowercase repo name for Docker tags (ghcr requires lowercase)
+  DOCKER_REPO: ${{ github.repository_owner }}/ldml-v2
 
 jobs:
   lint:
@@ -186,8 +188,8 @@ jobs:
           file: packages/server-v2/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/server-v2:latest
-            ghcr.io/${{ github.repository }}/server-v2:${{ github.sha }}
+            ghcr.io/${{ env.DOCKER_REPO }}/server-v2:latest
+            ghcr.io/${{ env.DOCKER_REPO }}/server-v2:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -198,7 +200,7 @@ jobs:
           file: apps/web-console/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/web-console:latest
-            ghcr.io/${{ github.repository }}/web-console:${{ github.sha }}
+            ghcr.io/${{ env.DOCKER_REPO }}/web-console:latest
+            ghcr.io/${{ env.DOCKER_REPO }}/web-console:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
