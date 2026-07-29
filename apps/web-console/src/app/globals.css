@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+:root {
+  --dzg-bg: #0a0e17;
+  --dzg-surface: #111827;
+  --dzg-border: #1e293b;
+  --dzg-accent: #f59e0b;
+  --dzg-glow: rgba(245, 158, 11, 0.15);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--dzg-bg);
+  color: #e2e8f0;
+  font-family: 'Noto Sans SC', system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0e17;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+
+/* 卡片通用样式 */
+.dzg-card {
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.9), rgba(15, 23, 42, 0.9));
+  border: 1px solid rgba(30, 41, 59, 0.8);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+}
+
+.dzg-card:hover {
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+/* 能量流光动画 */
+@keyframes energyFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.energy-flow {
+  background: linear-gradient(90deg, transparent, rgba(245,158,11,0.1), transparent);
+  background-size: 200% 100%;
+  animation: energyFlow 3s ease-in-out infinite;
+}
+
+/* 九宫格动画 */
+@keyframes palacePulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+.palace-active {
+  animation: palacePulse 2s ease-in-out infinite;
+}
+
+/* 科技感网格背景 */
+.dzg-grid-bg {
+  background-image: 
+    linear-gradient(rgba(245, 158, 11, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245, 158, 11, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* 玻璃态 */
+.glass-panel {
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}

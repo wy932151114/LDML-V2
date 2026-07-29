@@ -1,0 +1,204 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main, develop]
+  pull_request:
+    branches: [master, main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 22
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check (core)
+        run: cd packages/core && npx tsc --noEmit --skipLibCheck && cd ../..
+
+      - name: TypeScript check (shared)
+        run: cd packages/shared && npx tsc --noEmit --skipLibCheck && cd ../..
+
+      - name: TypeScript check (protocols)
+        run: cd packages/dzs-protocols && npx tsc --noEmit --skipLibCheck && cd ../..
+
+      - name: TypeScript check (utils)
+        run: cd packages/utils && npx tsc --noEmit --skipLibCheck && cd ../..
+
+  build-libs:
+    name: Build Libraries
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build @dzs/core
+        run: cd packages/core && npx tsc --outDir dist --skipLibCheck && cd ../..
+
+      - name: Build @dzs/shared
+        run: cd packages/shared && npx tsc --outDir dist --skipLibCheck && cd ../..
+
+      - name: Build @dzs/protocols
+        run: cd packages/dzs-protocols && npx tsc --outDir dist --skipLibCheck && cd ../..
+
+      - name: Build @dzs/utils
+        run: cd packages/utils && npx tsc --outDir dist --skipLibCheck && cd ../..
+
+      - name: Build @dzs/server
+        run: cd packages/server && npx tsc --outDir dist --skipLibCheck && cd ../..
+
+      - name: Upload library artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-libs
+          path: |
+            packages/core/dist/
+            packages/shared/dist/
+            packages/dzs-protocols/dist/
+            packages/utils/dist/
+            packages/server/dist/
+
+  test-core:
+    name: Test Core Library
+    runs-on: ubuntu-latest
+    needs: [build-libs]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run core tests
+        run: cd packages/core && npx vitest run --reporter verbose && cd ../..
+
+  test-server-v2:
+    name: Test Server V2
+    runs-on: ubuntu-latest
+    needs: [build-libs]
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download library dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-libs
+          path: .
+
+      - name: Run V2 tests with coverage
+        run: cd packages/server-v2 && npx jest --config jest.config.ts --verbose --ci --coverage && cd ../..
+        env:
+          MONGODB_URI: mongodb://localhost:27017/dzs_os_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          JWT_SECRET: test-secret-key
+          NODE_ENV: test
+
+  build-web:
+    name: Build Web Console
+    runs-on: ubuntu-latest
+    needs: [build-libs]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web console
+        run: cd apps/web-console && npx next build && cd ../..
+
+  docker:
+    name: Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: [build-libs, test-core, test-server-v2, build-web]
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push server-v2
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: packages/server-v2/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/server-v2:latest
+            ghcr.io/${{ github.repository }}/server-v2:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push web-console
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/web-console/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/web-console:latest
+            ghcr.io/${{ github.repository }}/web-console:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

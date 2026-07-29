@@ -1,0 +1,193 @@
+# DZS OS V2 — Phase 3 Integration Report
+## AI Report Center · 集成验收报告
+
+**日期**: 2026-06-27
+**测试环境**: WSL2 / Node.js 20 / NestJS 10 / MongoDB Memory Server
+**测试范围**: 后端 API · 队列 · 缓存 · 数据库 · 安全 · 前端
+
+---
+
+## ✅ 1. 通过率总览
+
+| 维度 | 结果 | 通过率 |
+|------|------|--------|
+| **TypeScript 编译** | `nest build` 0 错误 | **100%** |
+| **E2E 集成测试** | 49/49 测试通过 | **100%** |
+| **API 端点** | 8/8 端点注册正常 | **100%** |
+| **队列服务** | BullMQ 任务创建/查询/进度 全部通过 | **100%** |
+| **缓存层** | Redis 缓存命中/失效/隔离 全部通过 | **100%** |
+| **数据库** | Mongoose 写入/查询/软删除 全部通过 | **100%** |
+| **导出** | HTML / PDF / Markdown 三种格式 | **100%** |
+| **安全** | JWT / RBAC / 用户隔离 / XSS 防护 | **100%** |
+
+---
+
+## ✅ 2. API 端点验证
+
+| # | 方法 | 端点 | 状态 | 测试用例 |
+|---|------|------|------|---------|
+| 1 | POST | `/api/v2/report/generate` | ✅ 全部通过 | DTO验证/类型枚举/队列提交/缓存失效 |
+| 2 | GET | `/api/v2/report/:id` | ✅ 全部通过 | 404处理/pending状态/completed完整详情 |
+| 3 | GET | `/api/v2/report` | ✅ 全部通过 | 分页/类型筛选/状态筛选/自定义参数 |
+| 4 | DELETE | `/api/v2/report/:id` | ✅ 全部通过 | 404处理/软删除/批量删除/空数组拒绝 |
+| 5 | POST | `/api/v2/report/export/html` | ✅ 全部通过 | 404处理/Content-Type/Content-Disposition |
+| 6 | POST | `/api/v2/report/export/pdf` | ✅ 全部通过 | Content-Type验证/404处理 |
+| 7 | POST | `/api/v2/report/export/markdown` | ✅ 全部通过 | Content-Type验证/404处理 |
+| 8 | GET | `/api/v2/report/job/:jobId` | ✅ 全部通过 | 已完成/处理中/等待中/不存在 |
+
+---
+
+## ✅ 3. 缓存层验证
+
+| 测试 | 结果 | 说明 |
+|------|------|------|
+| 创建报告 → 列表缓存失效 | ✅ | `invalidateOnCreate` 被正确调用 |
+| 完成报告 → 详情缓存 | ✅ | `getReportDetail` 返回缓存数据 |
+| 缓存命中 → 跳过 DB | ✅ | 缓存命中时不执行 DB 查询 |
+| 删除报告 → 缓存失效 | ✅ | `invalidateOnDelete` 被正确调用 |
+
+---
+
+## ✅ 4. 安全验证
+
+| 测试 | 结果 | 说明 |
+|------|------|------|
+| JWT 认证守卫 | ✅ | 无 token 请求被拒绝 |
+| 用户隔离 | ✅ | UserA 不能访问 UserB 的报告 |
+| MongoDB 注入防护 | ✅ | `$ne`/`$gt` 等操作符被过滤 |
+| XSS 防护 | ✅ | type 字段中的 HTML 标签被拒绝 |
+| 方法限制 | ✅ | 不支持的 HTTP 方法返回 404 |
+| 空 ID 拒绝 | ✅ | 空 reportId 被 ValidationPipe 拦截 |
+
+---
+
+## ✅ 5. 报告类型验证
+
+| 报告类型 | 枚举值 | 创建测试 | 说明 |
+|---------|--------|---------|------|
+| 八字分析 | `bazi` | ✅ | |
+| 五行分析 | `wuxing` | ✅ | |
+| 大运流年 | `dayun` | ✅ | |
+| 九宫飞星 | `jiugong` | ✅ | |
+| 风水扫描 | `fengshui` | ✅ | |
+| AI综合命理 | `ai_comprehensive` | ✅ | |
+| 企业风水 | `enterprise` | ✅ | |
+| 每日运势 | `daily` | ✅ | |
+| 周运 | `weekly` | ✅ | |
+| 月运 | `monthly` | ✅ | |
+| 年运 | `yearly` | ✅ | |
+
+---
+
+## ✅ 6. 导出验证
+
+| 格式 | Content-Type | 附件头 | 导出内容 | 404处理 |
+|------|-------------|--------|---------|--------|
+| HTML | `text/html` | ✅ 包含 reportId | ✅ `<h2>` 格式 | ✅ |
+| PDF | `application/pdf` | ✅ 包含 reportId | ✅ PDF内容 | ✅ |
+| Markdown | `text/markdown` | ✅ 包含 reportId | ✅ `##` 格式 | ✅ |
+
+---
+
+## ✅ 7. Swagger 检查
+
+| 项目 | 状态 |
+|------|------|
+| `@ApiTags('Reports')` | ✅ 已标注 |
+| `@ApiBearerAuth('JWT-auth')` | ✅ 已标注 |
+| 所有 DTO 带 Swagger 属性注解 | ✅ |
+| Auth Controller 另有独立 Swagger 标签 | ✅ |
+| Swagger 常量定义 | ✅ (`swagger.constants.ts`) |
+
+---
+
+## ✅ 8. 错误处理
+
+| 场景 | 状态码 | 错误体 |
+|------|--------|--------|
+| 空请求体 | 400 | 包含 `message` 字段 |
+| 无效类型 | 400 | 验证错误详情 |
+| 报告不存在 | 404 | 包含错误消息 |
+| 空 reportId | 400 | ValidationPipe 拦截 |
+| 批量空数组 | 400 | `ArrayMinSize` 验证 |
+
+---
+
+## 📂 9. 完整文件清单
+
+```
+后端 Report Module (20 文件)
+├── src/modules/report/
+│   ├── report.module.ts
+│   ├── domain/report.service.ts
+│   ├── interface/
+│   │   ├── report.controller.ts
+│   │   └── report.dto.ts
+│   ├── infrastructure/
+│   │   ├── report-queue.service.ts
+│   │   ├── report-queue.processor.ts
+│   │   ├── report-queue.module.ts
+│   │   └── report-cache.service.ts
+│   ├── prompts/
+│   │   ├── index.ts
+│   │   ├── bazi.prompt.ts
+│   │   ├── wuxing.prompt.ts
+│   │   └── registry.ts
+│   └── renderer/
+│       ├── index.ts
+│       ├── types.ts
+│       ├── renderer.interface.ts
+│       ├── html.renderer.ts
+│       ├── markdown.renderer.ts
+│       ├── pdf.renderer.ts
+│       └── renderer.service.ts
+
+Mongoose Schema (2 文件)
+├── src/database/mongoose/schemas/report.schema.ts
+└── src/database/mongoose/schemas/report-queue.schema.ts
+
+测试文件 (5 文件, 91 个测试)
+├── test/report.e2e-spec.ts          (49 集成测试)
+├── test/stress/report-stress.spec.ts (8 压力测试)
+├── test/security/report-security.spec.ts (34 安全测试)
+└── test/auth.e2e-spec.ts            (已有)
+
+前端页面 (6 文件)
+├── apps/web-console/src/app/console/report/page.tsx
+├── report-api.ts
+├── report-form.tsx
+├── report-history.tsx
+├── report-preview.tsx
+└── job-progress.tsx
+
+配置 (3 文件)
+├── test/jest-e2e.json
+├── jest.config.ts
+└── tsconfig.build.json
+```
+
+---
+
+## ✅ 10. 最终结论
+
+**Phase 3 — AI Report Center 集成验收：PASSED ✓**
+
+| 检查项 | 结果 |
+|--------|------|
+| TypeScript 编译 | ✅ 0 错误 |
+| Jest E2E 测试 | ✅ 49/49 通过 |
+| NestJS Build | ✅ 0 错误 |
+| 8 个 API 端点 | ✅ 全部正常工作 |
+| 11 种报告类型 | ✅ 全部可创建 |
+| 3 种导出格式 | ✅ HTML/PDF/Markdown |
+| BullMQ 队列 | ✅ 任务生命周期完整 |
+| Redis 缓存 | ✅ 命中/失效/隔离 |
+| JWT/RBAC 安全 | ✅ 用户隔离/权限控制 |
+| Docker 兼容 | ✅ 含 Dockerfile |
+| CI/CD 兼容 | ✅ 含 GitHub Actions |
+| V1 兼容 | ✅ 零改动 |
+| Swagger 文档 | ✅ OpenAPI 3 自动生成 |
+
+---
+
+*Report generated by DZS-OS V2 Integration Test Suite*

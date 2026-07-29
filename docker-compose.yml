@@ -1,0 +1,112 @@
+# ========================================
+# DZS-OS Docker Compose — 部署环境
+# 道之自然 · 命理AI系统
+# 使用方法: docker compose up -d
+# ========================================
+
+services:
+  # ===================== 数据库 =====================
+  mongodb:
+    image: mongo:7
+    container_name: dzs-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./scripts/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    environment:
+      MONGO_INITDB_DATABASE: dzs_os
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-dzs_dev_pass}
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: dzs-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===================== V1 后端 =====================
+  server:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    container_name: dzs-server-v1
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+      - PORT=4000
+      - HOST=0.0.0.0
+      - MONGODB_URI=mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-dzs_dev_pass}@mongodb:27017/dzs_os?authSource=admin
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  # ===================== V2 后端 =====================
+  server-v2:
+    build:
+      context: .
+      dockerfile: packages/server-v2/Dockerfile
+    container_name: dzs-server-v2
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=development
+      - PORT=5000
+      - HOST=0.0.0.0
+      - MONGODB_URI=mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-dzs_dev_pass}@mongodb:27017/dzs_os?authSource=admin
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_URI=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-dzs-dev-jwt-secret-change-in-production}
+      - JWT_ACCESS_EXPIRY=15m
+      - JWT_REFRESH_EXPIRY=7d
+      - PROVIDER_ENCRYPTION_KEY=${PROVIDER_ENCRYPTION_KEY:-691bfe8e8b1d1f51fc40bfb9e8d015fb4aaace5ec20353d9619ed805f87e91d3}
+      - AI_DEFAULT_PROVIDER=openai
+      - AI_DEFAULT_MODEL=gpt-4o
+      - AI_TEMPERATURE=0.7
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ===================== Web 前端 =====================
+  web-console:
+    build:
+      context: .
+      dockerfile: apps/web-console/Dockerfile
+    container_name: dzs-web-console
+    restart: unless-stopped
+    ports:
+      - "3333:3333"
+    environment:
+      - NODE_ENV=development
+      - API_V1_URL=http://server:4000
+      - API_V2_URL=http://server-v2:5000
+    depends_on:
+      - server-v2
+      - server
+
+volumes:
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local

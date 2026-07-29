@@ -1,0 +1,80 @@
+# ========================================
+# DZS-OS Docker Compose — C盘独立运行版
+# 所有端口已偏移，避免与D盘冲突
+# 使用方法: docker compose -f docker-compose.copy.yml up -d
+# ========================================
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: dzs-copy-mongodb
+    restart: unless-stopped
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb_copy_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: dzs_os_copy
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: dzs_copy_pass
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: dzs-copy-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_copy_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    container_name: dzs-copy-server-v1
+    restart: unless-stopped
+    ports:
+      - "4001:4000"
+    environment:
+      - NODE_ENV=development
+      - PORT=4000
+      - HOST=0.0.0.0
+      - MONGODB_URI=mongodb://admin:dzs_copy_pass@mongodb:27017/dzs_os_copy?authSource=admin
+      - JWT_SECRET=dzs-copy-jwt-secret-20260729
+      - JWT_EXPIRE_IN=15m
+      - REFRESH_TOKEN_EXPIRE_IN=7d
+      - BCRYPT_ROUNDS=12
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  web-console:
+    build:
+      context: .
+      dockerfile: apps/web-console/Dockerfile
+    container_name: dzs-copy-web-console
+    restart: unless-stopped
+    ports:
+      - "3334:3333"
+    environment:
+      - NODE_ENV=development
+      - API_V1_URL=http://server:4000
+    depends_on:
+      - server
+
+volumes:
+  mongodb_copy_data:
+    driver: local
+  redis_copy_data:
+    driver: local
