@@ -2,7 +2,7 @@
 // 道之自然·命理AI系统 ?Auth模块：认证服?// 微信一键登?+ JWT + 匿名访客
 // ============================================================
 
-import { Injectable, UnauthorizedException, ConflictException, TooManyRequestsException, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
@@ -129,7 +129,7 @@ export class AuthService {
     if (!user) { await this.delay(1000); throw new UnauthorizedException("郵箱或密碼錯誤"); }
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       const remainingTime = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 1000);
-      throw new TooManyRequestsException("賬戶被鎖定，請等待" + remainingTime + "秒後重試");
+      throw new HttpException("賬戶被鎖定，請等待" + remainingTime + "秒後重試", HttpStatus.TOO_MANY_REQUESTS);
     }
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
@@ -151,7 +151,7 @@ export class AuthService {
     if (!user) { await this.delay(1000); throw new UnauthorizedException("手機號或密碼錯誤"); }
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       const remainingTime = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 1000);
-      throw new TooManyRequestsException("賬戶被鎖定，請等待" + remainingTime + "秒後重試");
+      throw new HttpException("賬戶被鎖定，請等待" + remainingTime + "秒後重試", HttpStatus.TOO_MANY_REQUESTS);
     }
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {

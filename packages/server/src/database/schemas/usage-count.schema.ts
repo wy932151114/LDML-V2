@@ -27,4 +27,4 @@ export class UsageCount extends Document {
 }
 
 export const UsageCountSchema = SchemaFactory.createForClass(UsageCount);
-UsageCountSchema.index({ userId: 1, usageType: 1, isActive: true }, { unique: true });
+UsageCountSchema.index({ userId: 1, usageType: 1, isActive: 1 }, { unique: true });
